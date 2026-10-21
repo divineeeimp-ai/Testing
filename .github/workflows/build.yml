@@ -2,7 +2,11 @@ name: Build Jarvis APK
 
 on:
   push:
+    branches: [jarvis]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -21,8 +25,26 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk Jarvis.apk
 
       - uses: actions/upload-artifact@v4
         with:
           name: Jarvis-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: Jarvis.apk
+
+      - name: Publish as a release (direct download link)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: jarvis-latest
+          name: Jarvis
+          body: Download **Jarvis.apk** below and open it on your phone to install.
+          files: Jarvis.apk
+          make_latest: true
+
+      - name: Save APK to the 'apk' branch
+        run: |
+          mkdir out && cp Jarvis.apk out/ && cd out
+          git init -q -b apk
+          git add Jarvis.apk
+          git -c user.name="github-actions" -c user.email="actions@github.com" commit -qm "Jarvis APK build ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" apk
