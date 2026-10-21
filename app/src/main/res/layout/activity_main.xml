@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:fontFamily="sans-serif-light"
+            android:gravity="center"
+            android:letterSpacing="0.4"
+            android:text="J.A.R.V.I.S."
+            android:textColor="@color/cyan"
+            android:textSize="28sp" />
+
+        <com.jarvis.assistant.ArcReactorView
+            android:layout_width="160dp"
+            android:layout_height="160dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="20dp" />
+
+        <TextView
+            android:id="@+id/state"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:gravity="center"
+            android:textSize="16sp" />
+
+        <Button
+            android:id="@+id/btnPower"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="20dp"
+            android:background="@drawable/bg_button"
+            android:letterSpacing="0.1"
+            android:textColor="@color/bg"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/btnTest"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="12dp"
+            android:background="@drawable/bg_outline"
+            android:text="Open Jarvis now"
+            android:textColor="@color/cyan" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="SETUP FOR XIAOMI / HYPEROS"
+            android:letterSpacing="0.15"
+            android:textColor="#99FFFFFF"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Do each step once so “Hey Jarvis” can pop up from anywhere."
+            android:textColor="#77FFFFFF"
+            android:textSize="13sp" />
+
+        <LinearLayout
+            android:id="@+id/checklist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <Button
+            android:id="@+id/btnUninstall"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginTop="32dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:text="Uninstall Jarvis"
+            android:textColor="@color/red" />
+    </LinearLayout>
+</ScrollView>

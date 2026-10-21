@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#EB03070D">
+
+    <ImageButton
+        android:id="@+id/btnClose"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="24dp"
+        android:background="@drawable/bg_small"
+        android:contentDescription="Close"
+        android:src="@drawable/ic_close" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:fontFamily="sans-serif-light"
+            android:letterSpacing="0.4"
+            android:text="J.A.R.V.I.S."
+            android:textColor="@color/cyan"
+            android:textSize="22sp" />
+
+        <com.jarvis.assistant.ArcReactorView
+            android:id="@+id/reactor"
+            android:layout_width="240dp"
+            android:layout_height="240dp"
+            android:layout_marginTop="28dp"
+            android:contentDescription="Tap to talk" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:gravity="center"
+            android:minLines="2"
+            android:textColor="#FFFFFFFF"
+            android:textSize="20sp" />
+
+        <TextView
+            android:id="@+id/transcript"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:minLines="2"
+            android:textColor="#99FFFFFF"
+            android:textSize="16sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="36dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <LinearLayout
+                android:id="@+id/btnOff"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_small"
+                    android:contentDescription="Turn off Jarvis"
+                    android:padding="14dp"
+                    android:src="@drawable/ic_power" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="Off"
+                    android:textColor="#CCFFFFFF" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/btnMic"
+                android:layout_width="84dp"
+                android:layout_height="84dp"
+                android:background="@drawable/bg_mic"
+                android:contentDescription="Talk"
+                android:elevation="8dp"
+                android:padding="22dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_mic" />
+
+            <LinearLayout
+                android:id="@+id/btnUninstall"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <ImageView
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:background="@drawable/bg_small"
+                    android:contentDescription="Uninstall Jarvis"
+                    android:padding="14dp"
+                    android:src="@drawable/ic_delete" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="Uninstall"
+                    android:textColor="#CCFFFFFF" />
+            </LinearLayout>
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>
