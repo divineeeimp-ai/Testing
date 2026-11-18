@@ -1,100 +1,105 @@
-# SLMenu: internal Mono menu for the SCP: Secret Laboratory client
+# SLMenu: internal IL2CPP menu for the SCP: Secret Laboratory client
 
-SLMenu is an internal C# DLL. It is injected into the running game client (Mono runtime) and draws a Unity IMGUI menu with:
+A native x64 DLL (C++20) for the IL2CPP game client, with **player ESP** and **item ESP**.
 
-- **Player ESP:** box, head dot, name, role, distance, health (only while you are dead or spectating), snaplines, teammate filter, and an optional "last known position" view for players whose position the server is withholding.
-- **Item ESP:** every pickup on the map with its `ItemType` name and distance, coloured and filtered by the game's own `ItemCategory`, plus a max-distance slider.
+- **Player ESP:** box, head dot, name, role, distance, health (only while you are dead or spectating), snaplines, a teammate filter, and an optional faded "last known position" for players whose position the server is withholding.
+- **Item ESP:** every pickup with its `ItemType` name and distance, coloured and filtered by `ItemCategory`, with locked pickups optional and a distance limit.
 
-**Insert** toggles the menu. While it is open, the cursor is unlocked and movement is locked through the game's own `CursorManager`. The Info tab shows the build check results and has an **Unload** button.
+Everything is drawn through **Unity's own IMGUI** from a hook on the game's `StaticUnityMethods.OnGUI`. That makes it independent of the graphics API; this install renders with Vulkan.
 
-## How the game data was obtained
+## How it reaches game data: no offsets
 
-| What | Source | Status |
+| Need | How | Source |
 |---|---|---|
-| Class and member names | `Assembly-CSharp-Publicized.dll` from NuGet `ExMod.Exiled` 9.15.2, decompiled with ILSpy 8.2 | measured |
-| Game version of that assembly | `GameCore.Version`: **14.2.8, Release** | measured |
-| Which used members are definitely public | Cross-checked against `LabApi.dll` (Northwood, NuGet `Northwood.LabAPI`), which is compiled against the non-publicized assembly | partly measured (see below) |
-| Your client build | `C:\Program Files (x86)\Steam\...\SCP Secret Laboratory` was **not** reachable from the build machine | **not measured** |
+| Classes, methods, fields | `il2cpp_class_from_name`, `il2cpp_class_get_methods` and parameter type names, `il2cpp_class_get_field_from_name` | your running client |
+| Calls into game and Unity code | `il2cpp_runtime_invoke`; managed exceptions are captured, not propagated | your running client |
+| Abstract, virtual and interface members (`Team`, `RoleColor`, `FpcModule`, `CurValue`) | `il2cpp_object_get_virtual_method` | your running client |
+| Enum values (`Team`, `ItemType`, `ItemCategory`, `HitboxType`, `PickupFlags`, `EventType`) | read from the enum's literal fields at runtime | your running client |
+| Unity struct layouts (`Vector2`, `Vector3`, `Rect`, `Color`, `Matrix4x4`) | checked against their field offsets at startup | your running client |
+| `PickupSyncInfo.ItemId` position inside the struct | field offset from metadata, then cross-checked once against `il2cpp_field_get_value` on a boxed copy | your running client |
+| Hook target | `MethodInfo::methodPointer` of `StaticUnityMethods.OnGUI`; must lie inside `GameAssembly.dll` and must not be shared with `Update`, `LateUpdate` or `FixedUpdate` (identical-code folding) | your running client |
+| Player and pickup lists | `Object.FindObjectsByType(Type, None)` each frame; nothing managed is held across frames except one `GUIStyle`, kept alive with a GC handle | your running client |
 
-The reference assembly is the **dedicated-server** build of the same codebase. SLMenu uses **no raw offsets or signatures**: all access goes through managed type and member names. A different game version can therefore only break by renaming or removing members, and that is caught in two places:
+Names come from Assembly-CSharp **14.2.8** (the dedicated-server build of the same code, in NuGet `ExMod.Exiled` 9.15.2). Your client is a different build (`release-vanilla-efcc14c8`). Anything renamed there is reported, and only the feature that needs it is switched off.
 
-1. **Compile time.** The project compiles against *your* `SCPSL_Data\Managed\Assembly-CSharp.dll`, without a publicizer. If a member is missing or non-public in your build, the compiler reports it (CS0117 or CS0122) by name.
-2. **Runtime.** `GameBuild.Validate()` checks every required type and member by reflection. It turns off only the affected feature and lists the problem on the Info tab and in `Player.log`.
+## Measured on your install (from your PowerShell output)
 
-Members whose public visibility is **not** proven by LabApi (the publicized reference hides the original modifiers): `ReferenceHub.TryGetLocalHub`, `PlayerRoleBase.RoleColor`, `FirstPersonMovementModule.{ModuleReady, CharController, CharControllerSet, CharacterModelInstance}`, `FpcMotor.IsInvisible`, `CharacterModel.Hitboxes`, `HitboxIdentity.{HitboxType, CenterOfMass, IsEnemy}`, `MainCameraController.{CurrentCamera, LastPosition}`, `StaticUnityMethods.OnUpdate`, `GameCore.Version.*`, and `CursorManagement.*`. If one of these is not public in your build, step 2 of the build below fails and names it.
+- **Scripting backend:** IL2CPP. `GameAssembly.dll` is 71,179,616 bytes; there is no `Managed` folder.
+- **Engine:** Unity **6000.0.43f1**. Graphics: **Vulkan** (`Player.log`: `Forcing GfxDevice: Vulkan`).
+- **`global-metadata.dat`:** the magic is `AF 1B B1 FA`, so it is not encrypted, and class names are readable. The header claims **version 23**, which is unusual for Unity 6. SLMenu never parses this file, so the value does not matter to it.
+- **Exports:** the `il2cpp_*` export names are present in `GameAssembly.dll`. SLMenu resolves each one with `GetProcAddress` at startup.
 
-## What the client can actually see (measured from the 14.2.8 code)
+## What the server sends this client (from the 14.2.8 code)
 
-- **Player positions are culled by the server.** `FpcServerPositionDistributor` only sends targets that pass the receiver's `FpcVisibilityController`: within √1300 ≈ 36 m inside the facility, within √4900 = 70 m on Surface, and not hidden by effects such as SCP-268. For every player missing from a packet, the client sets `FpcModule.Motor.IsInvisible = true` and keeps the last received position. SLMenu hides those players by default. With "Show last known position" on, it draws them faded with a `(last known)` tag. The Players tab shows how many players are currently withheld.
-- **Other players' health is not sent to living players.** `HealthStat` and `HumeShieldStat` use `SyncMode.PrivateAndSpectators`, so real values arrive only while your own team is `Team.Dead`. Health text is drawn only then.
-- **Pickups are not culled.** The game's `CustomInterestManagement` makes every networked object visible to every ready client, so item ESP sees the whole map. The game keeps no static pickup list: SLMenu subscribes to `ItemPickupBase.OnPickupAdded` and `OnPickupDestroyed` and seeds the list once with `FindObjectsOfType<ItemPickupBase>()`.
+- **Positions:** `FpcServerPositionDistributor` only sends players who pass your `FpcVisibilityController`: about 36 m (√1300) inside the facility, 70 m (√4900) on Surface, and not hidden by effects such as SCP-268. For each player missing from a packet, the client sets `Motor.IsInvisible` and keeps the last position it received. Such players are hidden by default; enable "Show last known" to see them faded.
+- **Health:** `HealthStat` and `HumeShieldStat` reach you only while your own team is `Dead`. Health is drawn only then.
+- **Pickups:** the game's `CustomInterestManagement` sends every networked object to every client, so item ESP covers the whole map.
 
-## Requirements
+## Build (Windows, Visual Studio 2022 or Build Tools with "Desktop development with C++")
 
-- Windows, with SCP: Secret Laboratory installed and using the **Mono** backend. Check it first:
-  ```bash
-  powershell -ExecutionPolicy Bypass -File tools\Check-GameBuild.ps1
-  ```
-  The script reports MONO or IL2CPP and prints the sizes and SHA-256 hashes of the DLLs SLMenu compiles against. The build also refuses to run if `GameAssembly.dll` exists (that file means an IL2CPP build).
-- .NET SDK 6 or newer. Targeting `net48` needs no Visual Studio: the SDK pulls `Microsoft.NETFramework.ReferenceAssemblies` automatically.
-- A Mono injector. Examples below use SharpMonoInjector (`smi.exe`).
-
-## Build
+Open **Developer PowerShell for VS 2022** in the repository folder:
 
 ```bash
-dotnet build SLMenu.sln -c Release
-```
-
-If the game is installed somewhere else:
-
-```bash
-dotnet build SLMenu.sln -c Release -p:GameDir="D:\SteamLibrary\steamapps\common\SCP Secret Laboratory"
-```
-
-Output: `src\SLMenu\bin\Release\SLMenu.dll`. Game assemblies are referenced with `Private=false`, so nothing from the game is copied to the output.
-
-## Inject and eject
-
-The process name is `SCPSL`: Unity names the data folder `<exe>_Data`, and the folder is `SCPSL_Data`.
-
-```bash
-smi.exe inject -p SCPSL -a src\SLMenu\bin\Release\SLMenu.dll -n SLMenu -c Loader -m Load
+cmake -S . -B build -A x64
 ```
 
 ```bash
-smi.exe eject -p SCPSL -a <address printed by inject> -n SLMenu -c Loader -m Unload
+cmake --build build --config Release
 ```
 
-Injectors call `Load` and `Unload` on their own thread. SLMenu therefore defers object creation and destruction to the game's `StaticUnityMethods.OnUpdate` event, which runs on the Unity main thread. Mono cannot unload an assembly from the root domain, so the code stays in memory after `Unload`. The menu object, event subscriptions, cursor override and textures are all released.
+Output: `build\Release\SLMenu.dll` (MinHook is linked in statically, along with the static C runtime) and `build\Release\SLInject.exe`.
+
+## Use
+
+1. Start SCP:SL and join a server, or wait at the main menu.
+2. Inject:
+   ```bash
+   build\Release\SLInject.exe build\Release\SLMenu.dll
+   ```
+3. The menu opens in the top-left corner.
+
+| Key | Action |
+|---|---|
+| Insert | show or hide the menu |
+| Up / Down | select |
+| Left / Right | change a slider (and flip a toggle) |
+| Enter | flip a toggle |
+| End | unload (restores `OnGUI`; the DLL stays mapped) |
+
+Keys only act while the game window has focus. They are not consumed, so the game also sees them. Change them in `src/settings.h` if they collide with your binds.
+
+The log is `SLMenu.log`, written next to `SLMenu.dll`. It lists every resolved and missing member, each "candidate" overload when a lookup fails, the hook address as `GameAssembly+0x...`, and the game version string.
+
+## Unload
+
+End (or the menu's Unload entry) disables the hook, which restores `OnGUI`'s original bytes. The DLL and its trampoline stay loaded on purpose: a main-thread call that entered the detour just before the patch could still be returning through them. The module is pinned, so the injector cannot free it either.
 
 ## Layout
 
 | File | Role |
 |---|---|
-| `src/SLMenu/Loader.cs` | Injector entry points `SLMenu.Loader.Load` and `Unload`, deferred to the main thread |
-| `src/SLMenu/MenuBehaviour.cs` | Menu window, hotkey, per-feature error isolation, Info tab |
-| `src/SLMenu/GameBuild.cs` | Reference build (14.2.8), runtime version, Mono and member validation |
-| `src/SLMenu/CursorUnlock.cs` | `ICursorOverride` registered with the game's `CursorManager` |
-| `src/SLMenu/Settings.cs` | Menu options (kept in memory only) |
-| `src/SLMenu/Esp/PlayerEsp.cs` | Player collection and drawing |
-| `src/SLMenu/Esp/PickupTracker.cs` | Live set of `ItemPickupBase` instances |
-| `src/SLMenu/Esp/ItemEsp.cs` | Pickup collection and drawing |
-| `src/SLMenu/Render/ScreenMath.cs` | Pure viewport-to-IMGUI and box math (checked outside the game) |
-| `src/SLMenu/Render/ViewCamera.cs` | Camera selection and world-to-GUI projection |
-| `src/SLMenu/Render/Draw.cs` | IMGUI primitives: rectangles, outlines, lines, dots, text |
-| `tools/Check-GameBuild.ps1` | Mono/IL2CPP check and DLL fingerprints |
+| `src/dllmain.cpp` | init thread, `OnGUI` hook, per-frame guard, unload |
+| `src/il2cpp_api.*` | `il2cpp_*` export table |
+| `src/runtime.*` | lookup by name, invoke, enums, arrays, strings, layout validation |
+| `src/game.*` | every game and Unity member used, resolved and reported per feature |
+| `src/esp.*` | player and item ESP, camera matrices, diagnostics |
+| `src/gui.*` | IMGUI drawing (rectangles, outlines, lines, text) |
+| `src/menu.*` | keyboard menu and info section |
+| `src/math.h`, `src/text.h` | pure projection, box, UTF-16 and enum helpers |
+| `src/settings.h` | options and keys |
+| `injector/injector.cpp` | `LoadLibraryW` injector with process and module checks |
+| `tools/Check-GameBuild.ps1` | backend check and file fingerprints |
+| `third_party/minhook` | MinHook (BSD-2-Clause), commit 8af6b4a |
 
-## Coordinates and rendering
+## Coordinates
 
-- Unity world space: left-handed, Y up, metres.
-- Projection uses `Camera.WorldToViewportPoint` and is converted to IMGUI pixels with the origin top-left. Points behind the near plane or with non-finite values are rejected.
-- Everything is collected and drawn in `OnGUI` during `EventType.Repaint`, which runs after that frame's `LateUpdate`.
-- Boxes come from each player's live `CharacterController` (`center`, `height` and `radius`; the game changes height and center while crouching). The head dot is the `HitboxType.Headshot` hitbox's `CenterOfMass`.
-- Camera: `Camera.main`, falling back to the `Camera` under `MainCameraController.CurrentCamera`. Which `Camera` component the game renders the world through is prefab data that is not in the assembly. The Info tab shows the chosen camera and its distance from `MainCameraController.LastPosition`. That distance should be about 0 m.
+Unity world space is left-handed, Y up, in metres. `Matrix4x4` is stored column-major; this is checked at runtime. The projection is `projectionMatrix * worldToCameraMatrix` in OpenGL convention, then mapped to the viewport and to IMGUI pixels with the origin top-left. Points behind the near plane and non-finite values are rejected. Every 30 frames the menu compares this projection with Unity's own `Camera.WorldToViewportPoint` and shows the difference in pixels.
 
 ## Verification status
 
-- Built in a Linux container against the 14.2.8 reference assembly, Unity 2021.3.33 reference modules (NuGet `UnityEngine.Modules`), and compile-only stand-ins for `Mirror.dll` and `Pooling.dll`. The output DLL references no members of either assembly. Result: 0 warnings, 0 errors.
-- The `ScreenMath` checks pass (19 cases).
-- `Check-GameBuild.ps1` was run under PowerShell 7.4 on mock Mono, IL2CPP and missing folders.
-- **Not built against your client DLLs and not run in the game.** First in-game checks: open the Info tab and confirm that the version is 14.2.8 or the problems list is empty, that the camera offset is about 0 m, and that boxes line up with player models, including while crouching.
+- **Cross-compiled:** built with MinGW-w64 GCC 13 in a Linux container: 0 warnings, exit code 0. The DLL imports only `KERNEL32`, `msvcrt` and `USER32`. **The MSVC build has not been run.**
+- **Isolated checks:** projection, box, UTF-16 and enum checks pass (25 cases).
+- **Not run in the game.** First checks:
+  - The INFO section lists no `!` problems apart from the version line.
+  - "Projection error vs Unity" is about 0 px.
+  - Boxes sit on players, including when they crouch.
