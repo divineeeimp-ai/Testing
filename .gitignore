@@ -1,8 +1,0 @@
-.gradle/
-build/
-local.properties
-.idea/
-*.iml
-.DS_Store
-# downloaded automatically at build time
-app/src/main/assets/model-en-us/
