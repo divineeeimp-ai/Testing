@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Compiles against the exact assemblies of your installed client, the same way
+       Northwood's LabAPI does (game mscorlib/netstandard, no implicit framework refs).
+       Point ManagedDir at <game>\SCPSL_Data\Managed:
+         dotnet build -c Release -p:ManagedDir="D:\Games\SCP Secret Laboratory\SCPSL_Data\Managed" -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>SLInternal</AssemblyName>
+    <RootNamespace>SLInternal</RootNamespace>
+    <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <DebugType>none</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\dist\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <ManagedDir Condition="'$(ManagedDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\SCP Secret Laboratory\SCPSL_Data\Managed</ManagedDir>
+    <!-- The game's Managed folder is the framework: mscorlib and friends resolve from
+         there and no .NET Framework targeting pack is needed. -->
+    <FrameworkPathOverride>$(ManagedDir)</FrameworkPathOverride>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="mscorlib" HintPath="$(ManagedDir)\mscorlib.dll" Private="false" />
+    <Reference Include="System" HintPath="$(ManagedDir)\System.dll" Private="false" />
+    <Reference Include="System.Core" HintPath="$(ManagedDir)\System.Core.dll" Private="false" />
+    <Reference Include="netstandard" HintPath="$(ManagedDir)\netstandard.dll" Private="false" />
+
+    <Reference Include="Assembly-CSharp" HintPath="$(ManagedDir)\Assembly-CSharp.dll" Private="false" />
+    <Reference Include="Assembly-CSharp-firstpass" HintPath="$(ManagedDir)\Assembly-CSharp-firstpass.dll" Private="false" />
+    <Reference Include="Mirror" HintPath="$(ManagedDir)\Mirror.dll" Private="false" />
+    <Reference Include="NorthwoodLib" HintPath="$(ManagedDir)\NorthwoodLib.dll" Private="false" />
+    <Reference Include="Pooling" HintPath="$(ManagedDir)\Pooling.dll" Private="false" />
+    <Reference Include="CommandSystem.Core" HintPath="$(ManagedDir)\CommandSystem.Core.dll" Private="false" />
+
+    <Reference Include="UnityEngine" HintPath="$(ManagedDir)\UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(ManagedDir)\UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.IMGUIModule" HintPath="$(ManagedDir)\UnityEngine.IMGUIModule.dll" Private="false" />
+    <Reference Include="UnityEngine.PhysicsModule" HintPath="$(ManagedDir)\UnityEngine.PhysicsModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(ManagedDir)\UnityEngine.TextRenderingModule.dll" Private="false" />
+  </ItemGroup>
+
+</Project>
