@@ -116,8 +116,9 @@ void Put64(std::vector<uint8_t>& v, uint64_t x)
 
 // x64 thread routine; RCX = path (thread parameter).
 //   sub rsp,28h ; mov rax,LoadLibraryW ; call rax ; mov rcx,&result ; mov [rcx],rax
-//   mov rax,GetLastError ; call rax ; mov rcx,&result+8 ; mov [rcx],eax ; xor eax,eax ; add rsp,28h ; ret
-std::vector<uint8_t> BuildStub(void* loadLibraryW, void* getLastError, uint8_t* result)
+//   mov rax,GetLastError ; call rax ; mov rcx,&result+8 ; mov [rcx],eax
+//   mov rax,RtlGetLastNtStatus ; call rax ; mov rcx,&result+12 ; mov [rcx],eax ; xor eax,eax ; add rsp,28h ; ret
+std::vector<uint8_t> BuildStub(void* loadLibraryW, void* getLastError, void* getLastNtStatus, uint8_t* result)
 {
     std::vector<uint8_t> s;
     s.insert(s.end(), {0x48, 0x83, 0xEC, 0x28});
@@ -128,6 +129,10 @@ std::vector<uint8_t> BuildStub(void* loadLibraryW, void* getLastError, uint8_t* 
     s.insert(s.end(), {0x48, 0xB8}); Put64(s, reinterpret_cast<uint64_t>(getLastError));
     s.insert(s.end(), {0xFF, 0xD0});
     s.insert(s.end(), {0x48, 0xB9}); Put64(s, reinterpret_cast<uint64_t>(result + 8));
+    s.insert(s.end(), {0x89, 0x01});
+    s.insert(s.end(), {0x48, 0xB8}); Put64(s, reinterpret_cast<uint64_t>(getLastNtStatus));
+    s.insert(s.end(), {0xFF, 0xD0});
+    s.insert(s.end(), {0x48, 0xB9}); Put64(s, reinterpret_cast<uint64_t>(result + 12));
     s.insert(s.end(), {0x89, 0x01});
     s.insert(s.end(), {0x31, 0xC0});
     s.insert(s.end(), {0x48, 0x83, 0xC4, 0x28});
@@ -177,7 +182,7 @@ int wmain(int argc, wchar_t** argv)
 
     PrintMitigations(process);
 
-    // Data block in the target: [0] HMODULE result, [8] GetLastError, [16...] DLL path (UTF-16).
+    // Data block in the target: [0] HMODULE result, [8] GetLastError, [12] last NTSTATUS, [16...] DLL path (UTF-16).
     const SIZE_T pathBytes = (wcslen(full) + 1) * sizeof(wchar_t);
     const SIZE_T dataBytes = 16 + pathBytes;
     auto* data = static_cast<uint8_t*>(VirtualAllocEx(process, nullptr, dataBytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
@@ -198,14 +203,15 @@ int wmain(int argc, wchar_t** argv)
     HMODULE k32 = GetModuleHandleW(L"kernel32.dll");
     void* loadLibraryW = reinterpret_cast<void*>(GetProcAddress(k32, "LoadLibraryW"));
     void* getLastError = reinterpret_cast<void*>(GetProcAddress(k32, "GetLastError"));
+    void* getLastNtStatus = reinterpret_cast<void*>(GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "RtlGetLastNtStatus"));
 
     // Preferred: a 64-byte stub that calls LoadLibraryW(path) and stores the HMODULE and GetLastError,
     // so a failure reports the real reason. Falls back to a plain LoadLibraryW thread if the target
     // refuses executable memory.
-    const std::vector<uint8_t> stub = BuildStub(loadLibraryW, getLastError, data);
+    const std::vector<uint8_t> stub = BuildStub(loadLibraryW, getLastError, getLastNtStatus, data);
     void* code = VirtualAllocEx(process, nullptr, stub.size(), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     DWORD oldProtect = 0;
-    bool useStub = code && WriteProcessMemory(process, code, stub.data(), stub.size(), &written) &&
+    bool useStub = code && getLastNtStatus && WriteProcessMemory(process, code, stub.data(), stub.size(), &written) &&
                    written == stub.size() &&
                    VirtualProtectEx(process, code, stub.size(), PAGE_EXECUTE_READ, &oldProtect) &&
                    FlushInstructionCache(process, code, stub.size());
@@ -246,8 +252,11 @@ int wmain(int argc, wchar_t** argv)
     }
     if (!HasModule(pid, fileName)) {
         if (haveResult) {
-            const DWORD err = static_cast<DWORD>(result[1]);
+            const DWORD err = static_cast<DWORD>(result[1] & 0xFFFFFFFFu);
+            const DWORD status = static_cast<DWORD>(result[1] >> 32);
             std::fwprintf(stderr, L"error: LoadLibraryW failed inside the game: error %lu: %ls\n", err, Describe(err).c_str());
+            std::fprintf(stderr, "       last NTSTATUS 0x%08lX, LoadLibraryW returned 0x%016llX\n", status,
+                         static_cast<unsigned long long>(result[0]));
             Explain(err);
         } else {
             std::fprintf(stderr, "error: LoadLibraryW failed inside the game (reason unavailable without the stub)\n");
