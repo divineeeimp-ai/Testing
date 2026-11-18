@@ -36,7 +36,7 @@ target_compile_definitions(SLMenu PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _
 set_target_properties(SLMenu PROPERTIES PREFIX "")
 
 add_executable(SLInject injector/injector.cpp)
-target_compile_definitions(SLInject PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
+target_compile_definitions(SLInject PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE _WIN32_WINNT=0x0A00)
 
 if(MSVC)
   target_compile_options(SLMenu PRIVATE /W4 /permissive- /utf-8 /EHsc)
